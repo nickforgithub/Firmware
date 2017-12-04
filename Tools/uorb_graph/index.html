@@ -18,11 +18,13 @@
 </head>
 
 <body>
-<input id="search" type="text" autofocus>
+Search: <input id="search" type="text" autofocus>
 Preset: <select id ="select-graph" name="select-graph" onchange="reloadSimulation(this.value);">
-    <option value='graph_v4.json'>FMUv4</option>
-    <option value='graph_sitl.json'>SITL</option>
-    <option value='graph_full.json'>Full</option>
+    <option value='graph_px4fmu-v4.json'>FMUv4 Modules</option>
+    <option value='graph_px4fmu-v2.json'>FMUv2 Modules</option>
+    <option value='graph_sitl.json'>SITL Modules</option>
+    <option value='graph_runtime_sitl.json'>SITL Runtime Modules</option>
+    <option value='graph_full.json'>All Modules</option>
 </select>
 <br/>
 <svg width="1200" height="1200"></svg>

@@ -2487,7 +2487,7 @@ MulticopterPositionControl::calculate_velocity_setpoint(float dt)
 	    && _control_mode.flag_control_altitude_enabled) {
 		// If distance to ground is less than limit, increment set point upwards at up to the landing descent rate
 		if (_local_pos.dist_bottom < _min_hagl_limit) {
-			float climb_rate_bias = fminf(_params.pos_p(2) * (_min_hagl_limit - _local_pos.dist_bottom), _params.land_speed);
+			float climb_rate_bias = fminf(1.5f * _params.pos_p(2) * (_min_hagl_limit - _local_pos.dist_bottom), _params.land_speed);
 			_vel_sp(2) -= climb_rate_bias;
 			_pos_sp(2) -= climb_rate_bias * dt;
 

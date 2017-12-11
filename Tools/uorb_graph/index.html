@@ -2,19 +2,6 @@
 <html>
 <head>
 <meta charset="utf-8">
-<style>
-
-.links line {
-    /*stroke: #999; */
-    stroke-opacity: 0.6;
-}
-
-.nodes circle {
-    stroke: #fff;
-    stroke-width: 1.5px;
-}
-
-</style>
 </head>
 
 <body>
@@ -72,31 +59,31 @@ document.getElementById("search").addEventListener("focusin", searchTextChanged)
 
 var svg = d3.select("svg"),
     width = +svg.attr("width"),
-    height = +svg.attr("height"),
-    font_size = 80; // font size in %
+    height = +svg.attr("height");
 
 
 var collisionForce = rectCollide()
-    .size(function (d) { return [d.width, d.height+3] })
+    .size(function (d) { return [d.width+10, d.height+6]; });
 
 var boxForce = boundedBox()
     .bounds([[0, 0], [width, height]])
-    .size(function (d) { return [d.width, d.height] })
+    .size(function (d) { return [d.width, d.height]; });
 
 var simulation = d3.forceSimulation()
-    .velocityDecay(0.2) // default: 0.4
+    .velocityDecay(0.3) // default: 0.4
     // alpha: initially 1, then reduced at each step, reducing the forces, so
     // that the simulation comes to a stop eventually
-    .alphaMin(0.001) // default: 0.001
+    .alphaMin(0.0001) // default: 0.001
     .alphaDecay(0.0428) // default: 0.0228
     //.alphaTarget(1) // enabling this will make sure the simulation never comes
-    // to a stop (and the nodes will keep fighting for their position)
+    // to a stop (and the nodes will either keep fighting for their position, or
+    // find an equilibrium)
     .force("link", d3.forceLink().id(function(d) { return d.id; })
-    .distance(70)//.strength(0.02) // default: 30, 1 / Math.min(count(link.source), count(link.target));
+    .distance(100)//.strength(0.02) // default: 30, 1 / Math.min(count(link.source), count(link.target));
         // distance: desired link distance
 //      .iterations(1) // default: 1, greater = increased rigidity
     )
-    .force("charge", d3.forceManyBody().strength(-350)) // decrease to make the
+    .force("charge", d3.forceManyBody().strength(-250)) // decrease to make the
            // graph spread more (distance has a similar effect, but affects the
            // leaf nodes more)
     .force('box', boxForce) // keep the nodes inside the visible area
@@ -113,23 +100,27 @@ function loadSimulation(json_file_name) {
     d3.json(json_file_name, function(error, graph) {
         if (error) throw error;
 
+        // explanation for the following syntax: https://bost.ocks.org/mike/join/
         link = svg.append("g")
             .attr("class", "links")
             .selectAll("line")
             .data(graph.links)
             .enter().append("line")
+            .attr("stroke-opacity", 0.7)
             .attr("stroke", function(d) { return d.color; })
             .style("stroke-dasharray", function(d) {
                 if (d.style == "dashed") return "3, 3";
                 return "1, 0";
-            })
-        ;
+            });
 
         var g = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g");
-        node = g.append("rect");
+        node = g.append("rect")
+            // rounded corners (somewhat more expensive to render)
+            .attr("rx", function(d) { return d.type == "module" ? 8 : 0; });
+
         text = g.append("text")
             .attr("class", "labels")
-            .attr("font-size", font_size+"%")
+            .style("font-size", "80%")
             .attr("fill", function(d) { return "#fff"; })
             .attr("dy", ".35em")
             .attr("text-anchor", "middle")
@@ -142,9 +133,16 @@ function loadSimulation(json_file_name) {
         var paddingTopBottom = 5;
 
         svg.selectAll("text").each(function(d, i) {
+            var curPaddingLeftRight = paddingLeftRight;
+            var curPaddingTopBottom = paddingTopBottom;
+            if (graph.nodes[i].type == "module") {
+                curPaddingLeftRight *= 1.5;
+                curPaddingTopBottom *= 1.5;
+            }
+
             // get bounding box of text field and store it
-            graph.nodes[i].width = this.getBBox().width+paddingLeftRight;
-            graph.nodes[i].height = this.getBBox().height+paddingTopBottom;
+            graph.nodes[i].width = this.getBBox().width+curPaddingLeftRight;
+            graph.nodes[i].height = this.getBBox().height+curPaddingTopBottom;
 
             graph.nodes[i].vx = 0;
             graph.nodes[i].vy = 0;
@@ -261,8 +259,8 @@ loadSimulation(default_json_file);
 function rectCollide() {
     var nodes, sizes, masses;
     var size = constant([0, 0]);
-    var strength = 5;
-    var iterations = 2;
+    var strength = 0.3;
+    var iterations = 20;
 
     function force() {
         var node, size, mass, xi, yi;
@@ -301,7 +299,7 @@ function rectCollide() {
                     var m = masses[data.index] / (mass + masses[data.index]);
 
                     if (l > 0.000001) {
-                        if (Math.abs(xd) < Math.abs(yd)) {
+                        if (xd > yd) {
                             node.vx -= (x *= xd / l * strength) * m;
                             data.vx += x * (1 - m);
                         } else {
@@ -332,8 +330,8 @@ function rectCollide() {
         }
     }
 
-    function xCenter(d) { return d.x + d.vx + sizes[d.index][0] / 2; }
-    function yCenter(d) { return d.y + d.vy + sizes[d.index][1] / 2; }
+    function xCenter(d) { return d.x + d.vx; }
+    function yCenter(d) { return d.y + d.vy; }
 
     force.initialize = function (_) {
         sizes = (nodes = _).map(size);

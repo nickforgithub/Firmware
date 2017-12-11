@@ -20,19 +20,19 @@ Preset: <select id ="select-graph" name="select-graph" onchange="reloadSimulatio
 
 var graph_option = document.getElementById("select-graph");
 var default_json_file = graph_option.value;
-
+var minOpacity = 0.1; // opacity when a node/link is faded
 
 /* search field: highlight all matching nodes on text change */
-var preventFading = false;
+var g_filterText = "";
 function searchTextChanged() {
     var textField = document.getElementById("search");
     var searchText = textField.value;
-    var opacity = 0.1;
+    var opacity = minOpacity;
     if (searchText == "" || document.activeElement != textField) {
         opacity = 1;
-        preventFading = false;
+        g_filterText = "";
     } else {
-        preventFading = true;
+        g_filterText = searchText;
     }
 
     /* change opacity */
@@ -124,8 +124,8 @@ function loadSimulation(json_file_name) {
             .attr("fill", function(d) { return "#fff"; })
             .attr("dy", ".35em")
             .attr("text-anchor", "middle")
-            .text(function(d) { return d.name })
-            .on("mouseover", fadeAnimated(.1))
+            .text(function(d) { return d.name; })
+            .on("mouseover", fadeAnimated(minOpacity))
             .on("mouseout", fadeAnimated(1))
             .on("dblclick", openLink);
 
@@ -189,8 +189,6 @@ function loadSimulation(json_file_name) {
         var destOpacity = 1;
         function fadeAnimated(opacity) {
             return function(d) {
-                if (preventFading) return;
-
                 if (animationTimer != null)
                     animationTimer.stop();
 
@@ -224,20 +222,59 @@ function loadSimulation(json_file_name) {
         }
         function fade(opacity) {
             return function(d) {
-                node.style("stroke-opacity", function(o) {
-                    thisOpacity = isConnected(d, o) ? 1 : opacity;
+                /* The graph opacity is using the following behavior:
+                 * - no filtering (g_filterText == ""):
+                 *   - mouse hovers over a node: the node and it's connected
+                 *     nodes are visible, the rest is faded
+                 *   - else: all nodes and links are visible
+                 * - filtering:
+                 *   - all nodes matching the filter are always visible
+                 *   - mouse hovers over a node: the connected nodes are visible
+                 *   - no hovering: rest of the non-matching nodes are faded
+                 *     (and all the links too)
+                 */
+                var invertedOpacity = (1+minOpacity) - opacity;
+                if (g_filterText != "") {
+                    // in case of filtering, the default is to fade non-matching
+                    // nodes
+                    opacity = minOpacity;
+                }
+
+                function nodeOpacity(o) {
+                    if (g_filterText != "" && o.name.includes(g_filterText)) {
+                        thisOpacity = 1; // always visible if filter matches
+                    } else if (isConnected(d, o)) {
+                        if (g_filterText == "") {
+                            thisOpacity = 1; // connected w/o filtering -> show it
+                        } else if (d.name.includes(g_filterText)) {
+                            thisOpacity = invertedOpacity;
+                        } else {
+                            thisOpacity = opacity;
+                        }
+                    } else {
+                        thisOpacity = opacity;
+                    }
+
                     this.setAttribute('fill-opacity', thisOpacity);
                     return thisOpacity;
-                });
+                }
 
-                text.style("stroke-opacity", function(o) {
-                    thisOpacity = isConnected(d, o) ? 1 : opacity;
-                    this.setAttribute('fill-opacity', thisOpacity);
-                    return thisOpacity;
-                });
+                node.style("stroke-opacity", nodeOpacity);
+                text.style("stroke-opacity", nodeOpacity);
 
+                var linkOpacity = opacity;
+                var linkOpacityConnected = 1;
+                if (g_filterText != "") {
+                    if (d.name.includes(g_filterText)) {
+                        linkOpacityConnected = invertedOpacity;
+                    } else {
+                        linkOpacityConnected = minOpacity;
+                    }
+                    linkOpacity = minOpacity;
+                }
                 link.style("stroke-opacity", function(o) {
-                    return o.source === d || o.target === d ? 1 : opacity;
+                    return o.source === d || o.target === d ?
+                        linkOpacityConnected : linkOpacity;
                 });
             };
         }
